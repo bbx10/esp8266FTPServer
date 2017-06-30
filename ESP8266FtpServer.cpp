@@ -18,12 +18,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <FS.h>
 #include "ESP8266FtpServer.h"
 
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
-#include <FS.h>
 
 
 
@@ -379,9 +379,9 @@ boolean FtpServer::processCommand()
       client.println( "150 Accepted data connection");
       uint16_t nm = 0;
       Dir dir=SPIFFS.openDir(cwdName);
-      if( !SPIFFS.exists(cwdName))
-        client.println( "550 Can't open directory " + String(cwdName) );
-      else
+      //if( !SPIFFS.exists(cwdName))
+      //  client.println( "550 Can't open directory " + String(cwdName) );
+      //else
       {
         while( dir.next())
         {
@@ -442,9 +442,9 @@ boolean FtpServer::processCommand()
       client.println( "150 Accepted data connection");
       uint16_t nm = 0;
       Dir dir=SPIFFS.openDir(cwdName);
-      if( !SPIFFS.exists( cwdName ))
-        client.println( "550 Can't open directory " + String(parameters));
-      else
+      //if( !SPIFFS.exists( cwdName ))
+      //  client.println( "550 Can't open directory " + String(parameters));
+      //else
       {
         while( dir.next())
         {
@@ -677,13 +677,15 @@ boolean FtpServer::dataConnect()
 
 boolean FtpServer::doRetrieve()
 {
-	//int16_t nb = file.readBytes((uint8_t*) buf, FTP_BUF_SIZE );
-	int16_t nb = file.readBytes(buf, FTP_BUF_SIZE);
-  if( nb > 0 )
-  { 
-    data.write((uint8_t*) buf, nb );
-    bytesTransfered += nb;
-    return true;
+  if( data.connected() )
+  {
+    int16_t nb = file.readBytes(buf, FTP_BUF_SIZE);
+    if( nb > 0 )
+    {
+      data.write((uint8_t*) buf, nb );
+      bytesTransfered += nb;
+      return true;
+    }
   }
   closeTransfer();
   return false;
@@ -693,7 +695,12 @@ boolean FtpServer::doStore()
 {
   if( data.connected() )
   {
-    int16_t nb = data.readBytes((uint8_t*) buf, FTP_BUF_SIZE );
+    // Avoid blocking by never reading more bytes than are available
+    int navail = data.available();
+    if (navail <= 0) return true;
+    // And be sure not to overflow buf.
+    if (navail > FTP_BUF_SIZE) navail = FTP_BUF_SIZE;
+    int16_t nb = data.read((uint8_t*) buf, navail );
     if( nb > 0 )
     {
       // Serial.println( millis() << " " << nb << endl;
